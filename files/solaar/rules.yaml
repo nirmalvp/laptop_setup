@@ -1,6 +1,6 @@
 %YAML 1.3
 ---
-# ── Firefox ──────────────────────────────────────────────
+# ── Firefox 
 - Process: firefox
 # Back Button : history back
 - Rule:
@@ -88,7 +88,7 @@
     - click
 ...
 ---
-# ── GoLand ───────────────────────────────────────────────
+# ── GoLand 
 - Process: goland
 # Back Button : previous error
 - Rule:
@@ -164,7 +164,7 @@
     - click
 ...
 ---
-# ── Global (all other apps) ──────────────────────────────
+# ── Global
 # Back Button : undo
 - Rule:
   - Key: [Back Button, pressed]
