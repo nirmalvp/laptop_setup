@@ -1,0 +1,1125 @@
+---
+- hosts: all
+  handlers:
+    - name: Restart Docker
+      become: true
+      systemd:
+        name: docker
+        state: restarted
+
+  vars:
+    # Update these before running
+    go_version: "1.26.4"
+    slack_version: "4.49.89"
+    jetbrains_toolbox_version: "3.5.0.84344"
+    kubectl_minor_version: "1.36"   
+    k9s_version: "0.50.18"
+    kubectx_version: "0.11.0"
+    lazydocker_version: "0.25.2"
+    obsidian_version: "1.12.7"
+
+    user_home: "{{ ansible_env.HOME }}"
+    username: "{{ ansible_env.USER }}"
+    zsh_custom: "{{ ansible_env.HOME }}/.oh-my-zsh/custom"
+
+  tasks:
+
+    # ────────────────────────────────────────────
+    # Prerequisites
+    # ────────────────────────────────────────────
+
+    - name: Update apt cache
+      become: true
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+      tags: always
+
+    - name: Install common dependencies
+      become: true
+      apt:
+        name:
+          - curl
+          - wget
+          - git
+          - unzip
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
+          - lsb-release
+        state: present
+      tags: always
+
+    # ────────────────────────────────────────────
+    # CLI tools
+    # ────────────────────────────────────────────
+
+    - name: Install CLI tools
+      become: true
+      apt:
+        name:
+          - fzf
+          - ripgrep
+          - bat
+          - fd-find
+          - jq
+        state: present
+      tags:
+        - cli-tools
+        - work
+        - personal
+
+    - name: Symlink fdfind to fd
+      become: true
+      file:
+        src: /usr/bin/fdfind
+        dest: /usr/local/bin/fd
+        state: link
+      tags:
+        - cli-tools
+        - work
+        - personal
+
+    - name: Add eza GPG key
+      become: true
+      shell: >
+        wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc
+        | gpg --dearmor -o /etc/apt/keyrings/gierens.gpg
+        && chmod 644 /etc/apt/keyrings/gierens.gpg
+      args:
+        creates: /etc/apt/keyrings/gierens.gpg
+      tags:
+        - cli-tools
+        - work
+        - personal
+
+    - name: Add eza apt repo
+      become: true
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main"
+        filename: gierens
+        state: present
+      tags:
+        - cli-tools
+        - work
+        - personal
+
+    - name: Install eza
+      become: true
+      apt:
+        name: eza
+        update_cache: true
+        state: present
+      tags:
+        - cli-tools
+        - work
+        - personal
+
+    - name: Check current lazydocker version
+      command: lazydocker --version
+      register: current_lazydocker_version
+      ignore_errors: true
+      changed_when: false
+      tags:
+        - cli-tools
+        - work
+        - personal
+
+    - name: Download lazydocker tarball
+      get_url:
+        url: "https://github.com/jesseduffield/lazydocker/releases/download/v{{ lazydocker_version }}/lazydocker_{{ lazydocker_version }}_Linux_x86_64.tar.gz"
+        dest: /tmp/lazydocker.tar.gz
+        mode: "0644"
+      when: current_lazydocker_version.rc != 0 or lazydocker_version not in current_lazydocker_version.stdout
+      tags:
+        - cli-tools
+        - work
+        - personal
+
+    - name: Extract and install lazydocker
+      become: true
+      shell: |
+        tar -xzf /tmp/lazydocker.tar.gz -C /tmp lazydocker
+        mv /tmp/lazydocker /usr/local/bin/lazydocker
+        chmod +x /usr/local/bin/lazydocker
+      when: current_lazydocker_version.rc != 0 or lazydocker_version not in current_lazydocker_version.stdout
+      tags:
+        - cli-tools
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # Slack
+    # ────────────────────────────────────────────
+
+    - name: Download Slack .deb
+      get_url:
+        url: "https://downloads.slack-edge.com/desktop-releases/linux/x64/{{ slack_version }}/slack-desktop-{{ slack_version }}-amd64.deb"
+        dest: /tmp/slack.deb
+        mode: "0644"
+      tags:
+        - slack
+        - work
+
+    - name: Install Slack
+      become: true
+      apt:
+        deb: /tmp/slack.deb
+      tags:
+        - slack
+        - work
+
+    # ────────────────────────────────────────────
+    # Tailscale
+    # ────────────────────────────────────────────
+
+    - name: Add Tailscale GPG key
+      become: true
+      shell: >
+        curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_distribution_release }}.noarmor.gpg
+        | tee /usr/share/keyrings/tailscale-archive-keyring.gpg > /dev/null
+      args:
+        creates: /usr/share/keyrings/tailscale-archive-keyring.gpg
+      tags:
+        - tailscale
+        - work
+
+    - name: Add Tailscale apt repo
+      become: true
+      shell: >
+        curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_distribution_release }}.tailscale-keyring.list
+        | tee /etc/apt/sources.list.d/tailscale.list
+      args:
+        creates: /etc/apt/sources.list.d/tailscale.list
+      tags:
+        - tailscale
+        - work
+
+    - name: Install Tailscale
+      become: true
+      apt:
+        name: tailscale
+        update_cache: true
+      tags:
+        - tailscale
+        - work
+
+    # ────────────────────────────────────────────
+    # AWS CLI v2
+    # ────────────────────────────────────────────
+
+    - name: Download AWS CLI v2 zip
+      get_url:
+        url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+        dest: /tmp/awscliv2.zip
+        mode: "0644"
+      tags:
+        - awscli
+        - work
+
+    - name: Unzip AWS CLI
+      unarchive:
+        src: /tmp/awscliv2.zip
+        dest: /tmp/
+        remote_src: true
+        creates: /tmp/aws/install
+      tags:
+        - awscli
+        - work
+
+    - name: Install AWS CLI
+      become: true
+      command: /tmp/aws/install --update
+      register: aws_install
+      changed_when: "'Skipping install' not in aws_install.stdout"
+      tags:
+        - awscli
+        - work
+
+    # ────────────────────────────────────────────
+    # gh CLI
+    # ────────────────────────────────────────────
+
+    - name: Add gh CLI GPG key
+      become: true
+      shell: |
+        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+          | tee /usr/share/keyrings/githubcli-archive-keyring.gpg > /dev/null
+        chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/githubcli-archive-keyring.gpg
+      tags:
+        - gh
+        - work
+        - personal
+
+    - name: Add gh CLI apt repo
+      become: true
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+        filename: github-cli
+        state: present
+      tags:
+        - gh
+        - work
+        - personal
+
+    - name: Install gh CLI
+      become: true
+      apt:
+        name: gh
+        update_cache: true
+        state: present
+      tags:
+        - gh
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # Docker (containerd image store)
+    # ────────────────────────────────────────────
+
+    - name: Remove old conflicting Docker packages
+      become: true
+      apt:
+        name:
+          - docker
+          - docker-engine
+          - docker.io
+          - containerd
+          - runc
+        state: absent
+      tags:
+        - docker
+        - work
+        - personal
+
+    - name: Add Docker GPG key
+      become: true
+      shell: >
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg
+        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        && chmod a+r /etc/apt/keyrings/docker.gpg
+      args:
+        creates: /etc/apt/keyrings/docker.gpg
+      tags:
+        - docker
+        - work
+        - personal
+
+    - name: Add Docker apt repo
+      become: true
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        filename: docker
+        state: present
+      tags:
+        - docker
+        - work
+        - personal
+
+    - name: Install Docker
+      become: true
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        update_cache: true
+        state: present
+      tags:
+        - docker
+        - work
+        - personal
+
+    - name: Configure Docker to use containerd image store
+      become: true
+      copy:
+        src: docker-daemon.json
+        dest: /etc/docker/daemon.json
+        mode: "0644"
+      notify: Restart Docker
+      tags:
+        - docker
+        - work
+        - personal
+
+    - name: Add user to docker group
+      become: true
+      user:
+        name: "{{ username }}"
+        groups: docker
+        append: true
+      tags:
+        - docker
+        - work
+        - personal
+
+    - name: Enable and start Docker
+      become: true
+      systemd:
+        name: docker
+        enabled: true
+        state: started
+      tags:
+        - docker
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # tmux
+    # ────────────────────────────────────────────
+
+    - name: Install tmux
+      become: true
+      apt:
+        name: tmux
+        state: present
+      tags:
+        - tmux
+        - work
+        - personal
+
+    - name: Write tmux config
+      copy:
+        src: tmux.conf
+        dest: "{{ user_home }}/.tmux.conf"
+        mode: "0644"
+      tags:
+        - tmux
+        - work
+        - personal
+
+    - name: Clone TPM (Tmux Plugin Manager)
+      git:
+        repo: https://github.com/tmux-plugins/tpm
+        dest: "{{ user_home }}/.tmux/plugins/tpm"
+        update: true
+      tags:
+        - tmux
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # zsh (as per https://web.archive.org/web/20260216050952/https://tkainrad.dev/posts/setting-up-linux-workstation/)
+    # ────────────────────────────────────────────
+
+    - name: Install zsh and required packages
+      become: true
+      apt:
+        name:
+          - zsh
+          - fonts-powerline
+          - xclip
+          - peco
+        state: present
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Set zsh as default shell
+      become: true
+      user:
+        name: "{{ username }}"
+        shell: /usr/bin/zsh
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Check if oh-my-zsh is already installed
+      stat:
+        path: "{{ user_home }}/.oh-my-zsh"
+      register: omz_dir
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Install oh-my-zsh
+      shell: >
+        wget -qO /tmp/omz-install.sh
+        https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
+        && RUNZSH=no CHSH=no sh /tmp/omz-install.sh
+      when: not omz_dir.stat.exists
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Patch agnoster theme - use white dir text
+      replace:
+        path: "{{ user_home }}/.oh-my-zsh/themes/agnoster.zsh-theme"
+        regexp: "^  prompt_segment blue \\$CURRENT_FG '%~'$"
+        replace: "  #prompt_segment blue $CURRENT_FG '%~'\n  prompt_segment blue white '%~'"
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Clone zsh-autosuggestions
+      git:
+        repo: https://github.com/zsh-users/zsh-autosuggestions
+        dest: "{{ zsh_custom }}/plugins/zsh-autosuggestions"
+        update: true
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Clone zsh-syntax-highlighting
+      git:
+        repo: https://github.com/zsh-users/zsh-syntax-highlighting.git
+        dest: "{{ zsh_custom }}/plugins/zsh-syntax-highlighting"
+        update: true
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Clone zsh-peco-history
+      git:
+        repo: https://github.com/jimeh/zsh-peco-history.git
+        dest: "{{ zsh_custom }}/plugins/zsh-peco-history"
+        update: true
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Set ZSH_THEME
+      lineinfile:
+        path: "{{ user_home }}/.zshrc"
+        regexp: '^ZSH_THEME='
+        line: 'ZSH_THEME="agnoster"'
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Remove default plugins line (replaced by our block below)
+      lineinfile:
+        path: "{{ user_home }}/.zshrc"
+        regexp: '^plugins=\(git\)\s*$'
+        state: absent
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Set plugins block
+      blockinfile:
+        path: "{{ user_home }}/.zshrc"
+        marker: "# {mark} ANSIBLE MANAGED: plugins"
+        insertbefore: '^source \$ZSH/oh-my-zsh.sh'
+        block: |
+          plugins=(
+            zsh-syntax-highlighting
+            zsh-autosuggestions
+            zsh-peco-history
+            z
+            colored-man-pages
+            git
+            aws
+            docker
+          )
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Set history options
+      blockinfile:
+        path: "{{ user_home }}/.zshrc"
+        marker: "# {mark} ANSIBLE MANAGED: history"
+        insertbefore: '^source \$ZSH/oh-my-zsh.sh'
+        block: |
+          HISTSIZE=10000000
+          SAVEHIST=10000000
+          setopt HIST_IGNORE_ALL_DUPS
+          setopt SHARE_HISTORY
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Ensure exports.zsh exists
+      copy:
+        dest: "{{ zsh_custom }}/exports.zsh"
+        content: ""
+        force: false
+        mode: "0644"
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Write custom exports to oh-my-zsh custom dir
+      blockinfile:
+        path: "{{ zsh_custom }}/exports.zsh"
+        marker: "# {mark} ANSIBLE MANAGED: exports"
+        block: |
+          export PATH=$HOME/.local/bin:$PATH
+          export PATH=$PATH:/usr/local/go/bin
+          export GOPATH=$HOME/.go
+          export PATH=$PATH:$GOPATH/bin
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Ensure aliases.zsh exists
+      copy:
+        dest: "{{ zsh_custom }}/aliases.zsh"
+        content: ""
+        force: false
+        mode: "0644"
+      tags:
+        - zsh
+        - work
+        - personal
+
+    - name: Write custom aliases to oh-my-zsh custom dir
+      blockinfile:
+        path: "{{ zsh_custom }}/aliases.zsh"
+        marker: "# {mark} ANSIBLE MANAGED: aliases"
+        block: |
+          alias -g G=' | grep'
+          alias -g L=' | less'
+
+          alias tm='tmux new -s'
+          alias ta='tmux attach -t'
+          alias tl='tmux list-sessions'
+          alias td='tmux detach'
+          alias tk='tmux kill-server'
+      tags:
+        - zsh
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # Go
+    # ────────────────────────────────────────────
+
+    - name: Check current Go version
+      command: /usr/local/go/bin/go version
+      register: current_go_version
+      ignore_errors: true
+      changed_when: false
+      tags:
+        - go
+        - work
+        - personal
+
+    - name: Download Go tarball
+      get_url:
+        url: "https://golang.org/dl/go{{ go_version }}.linux-amd64.tar.gz"
+        dest: "/tmp/go{{ go_version }}.linux-amd64.tar.gz"
+        mode: "0644"
+      when: current_go_version.rc != 0 or go_version not in current_go_version.stdout
+      tags:
+        - go
+        - work
+        - personal
+
+    - name: Remove old Go installation
+      become: true
+      file:
+        path: /usr/local/go
+        state: absent
+      when: current_go_version.rc != 0 or go_version not in current_go_version.stdout
+      tags:
+        - go
+        - work
+        - personal
+
+    - name: Extract Go
+      become: true
+      unarchive:
+        src: "/tmp/go{{ go_version }}.linux-amd64.tar.gz"
+        dest: /usr/local
+        remote_src: true
+      when: current_go_version.rc != 0 or go_version not in current_go_version.stdout
+      tags:
+        - go
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # kubectl
+    # ────────────────────────────────────────────
+
+    - name: Create keyrings directory
+      become: true
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+      tags:
+        - kubectl
+        - work
+        - personal
+
+    - name: Add kubectl GPG key
+      become: true
+      shell: >
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ kubectl_minor_version }}/deb/Release.key
+        | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      args:
+        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      tags:
+        - kubectl
+        - work
+        - personal
+
+    - name: Add kubectl apt repo
+      become: true
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ kubectl_minor_version }}/deb/ /"
+        filename: kubernetes
+        state: present
+      tags:
+        - kubectl
+        - work
+        - personal
+
+    - name: Install kubectl
+      become: true
+      apt:
+        name: kubectl
+        update_cache: true
+        state: present
+      tags:
+        - kubectl
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # k9s
+    # ────────────────────────────────────────────
+
+    - name: Check current k9s version
+      command: k9s version --short
+      register: current_k9s_version
+      ignore_errors: true
+      changed_when: false
+      tags:
+        - k9s
+        - work
+        - personal
+
+    - name: Download k9s tarball
+      get_url:
+        url: "https://github.com/derailed/k9s/releases/download/v{{ k9s_version }}/k9s_Linux_amd64.tar.gz"
+        dest: /tmp/k9s.tar.gz
+        mode: "0644"
+      when: current_k9s_version.rc != 0 or k9s_version not in current_k9s_version.stdout
+      tags:
+        - k9s
+        - work
+        - personal
+
+    - name: Extract and install k9s binary
+      become: true
+      shell: |
+        tar -xzf /tmp/k9s.tar.gz -C /tmp k9s
+        mv /tmp/k9s /usr/local/bin/k9s
+        chmod +x /usr/local/bin/k9s
+      when: current_k9s_version.rc != 0 or k9s_version not in current_k9s_version.stdout
+      tags:
+        - k9s
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # kubectx / kubens
+    # ────────────────────────────────────────────
+
+    - name: Install kubectx
+      become: true
+      get_url:
+        url: "https://github.com/ahmetb/kubectx/releases/download/v{{ kubectx_version }}/kubectx"
+        dest: /usr/local/bin/kubectx
+        mode: "0755"
+      tags:
+        - kubectx
+        - work
+        - personal
+
+    - name: Install kubens
+      become: true
+      get_url:
+        url: "https://github.com/ahmetb/kubectx/releases/download/v{{ kubectx_version }}/kubens"
+        dest: /usr/local/bin/kubens
+        mode: "0755"
+      tags:
+        - kubectx
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # Terraform
+    # ────────────────────────────────────────────
+
+    - name: Add HashiCorp GPG key
+      become: true
+      shell: >
+        curl -fsSL https://apt.releases.hashicorp.com/gpg
+        | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/hashicorp-archive-keyring.gpg
+      tags:
+        - terraform
+        - work
+        - personal
+
+    - name: Add HashiCorp apt repo
+      become: true
+      apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+        filename: hashicorp
+        state: present
+      tags:
+        - terraform
+        - work
+        - personal
+
+    - name: Install Terraform
+      become: true
+      apt:
+        name: terraform
+        update_cache: true
+        state: present
+      tags:
+        - terraform
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # Claude Code
+    # ────────────────────────────────────────────
+
+    - name: Check if Claude Code is already installed
+      command: claude --version
+      register: claude_installed
+      ignore_errors: true
+      changed_when: false
+      tags:
+        - claude-code
+        - work
+        - personal
+
+    - name: Install Claude Code
+      shell: curl -fsSL https://claude.ai/install.sh | bash
+      when: claude_installed.rc != 0
+      tags:
+        - claude-code
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # JetBrains Toolbox
+    # ────────────────────────────────────────────
+
+    - name: Check if JetBrains Toolbox is already installed
+      stat:
+        path: "{{ user_home }}/.local/share/JetBrains/Toolbox/bin/jetbrains-toolbox"
+      register: toolbox_bin
+      tags:
+        - jetbrains
+        - work
+        - personal
+
+    - name: Download JetBrains Toolbox
+      get_url:
+        url: "https://download.jetbrains.com/toolbox/jetbrains-toolbox-{{ jetbrains_toolbox_version }}.tar.gz"
+        dest: /tmp/jetbrains-toolbox.tar.gz
+        mode: "0644"
+      when: not toolbox_bin.stat.exists
+      tags:
+        - jetbrains
+        - work
+        - personal
+
+    - name: Create JetBrains Toolbox extract directory
+      file:
+        path: /tmp/jetbrains-toolbox-extract
+        state: directory
+        mode: "0755"
+      when: not toolbox_bin.stat.exists
+      tags:
+        - jetbrains
+        - work
+        - personal
+
+    - name: Extract JetBrains Toolbox
+      unarchive:
+        src: /tmp/jetbrains-toolbox.tar.gz
+        dest: /tmp/jetbrains-toolbox-extract/
+        remote_src: true
+      when: not toolbox_bin.stat.exists
+      tags:
+        - jetbrains
+        - work
+        - personal
+
+    - name: Run JetBrains Toolbox installer
+      shell: |
+        BINARY=$(find /tmp/jetbrains-toolbox-extract -name 'jetbrains-toolbox' -type f | head -1)
+        [ -n "$BINARY" ] && "$BINARY"
+      when: not toolbox_bin.stat.exists
+      ignore_errors: true
+      tags:
+        - jetbrains
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # ipython3
+    # ────────────────────────────────────────────
+
+    - name: Install ipython3
+      become: true
+      apt:
+        name: ipython3
+        state: present
+      tags:
+        - ipython3
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # uv
+    # ────────────────────────────────────────────
+
+    - name: Check if uv is installed
+      command: uv --version
+      register: uv_installed
+      ignore_errors: true
+      changed_when: false
+      tags:
+        - uv
+        - work
+        - personal
+
+    - name: Install uv
+      shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+      when: uv_installed.rc != 0
+      tags:
+        - uv
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # shellcheck
+    # ────────────────────────────────────────────
+
+    - name: Install shellcheck
+      become: true
+      apt:
+        name: shellcheck
+        state: present
+      tags:
+        - shellcheck
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # meld
+    # ────────────────────────────────────────────
+
+    - name: Install meld
+      become: true
+      apt:
+        name: meld
+        state: present
+      tags:
+        - meld
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # solaar
+    # ────────────────────────────────────────────
+
+    - name: Install solaar
+      become: true
+      apt:
+        name: solaar
+        state: present
+      tags:
+        - solaar
+        - work
+        - personal
+
+    - name: Ensure solaar config directory exists
+      file:
+        path: "{{ user_home }}/.config/solaar"
+        state: directory
+        mode: "0755"
+      tags:
+        - solaar
+        - work
+        - personal
+
+    - name: Copy solaar rules
+      copy:
+        src: solaar/rules.yaml
+        dest: "{{ user_home }}/.config/solaar/rules.yaml"
+        mode: "0644"
+      tags:
+        - solaar
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # VS Code
+    # ────────────────────────────────────────────
+
+    - name: Add VS Code GPG key
+      become: true
+      shell: >
+        curl -fsSL https://packages.microsoft.com/keys/microsoft.asc
+        | gpg --dearmor -o /usr/share/keyrings/microsoft-archive-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/microsoft-archive-keyring.gpg
+      tags:
+        - vscode
+        - work
+        - personal
+
+    - name: Add VS Code apt repo
+      become: true
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-archive-keyring.gpg] https://packages.microsoft.com/repos/vscode stable main"
+        filename: vscode
+        state: present
+      tags:
+        - vscode
+        - work
+        - personal
+
+    - name: Install VS Code
+      become: true
+      apt:
+        name: code
+        update_cache: true
+        state: present
+      tags:
+        - vscode
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # Sublime Text
+    # ────────────────────────────────────────────
+
+    - name: Add Sublime Text GPG key
+      become: true
+      shell: >
+        curl -fsSL https://download.sublimetext.com/sublimehq-pub.gpg
+        | gpg --dearmor -o /usr/share/keyrings/sublimehq-archive-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/sublimehq-archive-keyring.gpg
+      tags:
+        - sublime-text
+        - work
+        - personal
+
+    - name: Add Sublime Text apt repo
+      become: true
+      apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/sublimehq-archive-keyring.gpg] https://download.sublimetext.com/ apt/stable/"
+        filename: sublime-text
+        state: present
+      tags:
+        - sublime-text
+        - work
+        - personal
+
+    - name: Install Sublime Text
+      become: true
+      apt:
+        name: sublime-text
+        update_cache: true
+        state: present
+      tags:
+        - sublime-text
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # Obsidian
+    # ────────────────────────────────────────────
+
+    - name: Check current Obsidian version
+      shell: dpkg-query -W -f='${Version}' obsidian 2>/dev/null || echo "not-installed"
+      register: current_obsidian_version
+      changed_when: false
+      tags:
+        - obsidian
+        - work
+        - personal
+
+    - name: Download Obsidian .deb
+      get_url:
+        url: "https://github.com/obsidianmd/obsidian-releases/releases/download/v{{ obsidian_version }}/obsidian_{{ obsidian_version }}_amd64.deb"
+        dest: /tmp/obsidian.deb
+        mode: "0644"
+      when: obsidian_version not in current_obsidian_version.stdout
+      tags:
+        - obsidian
+        - work
+        - personal
+
+    - name: Install Obsidian
+      become: true
+      apt:
+        deb: /tmp/obsidian.deb
+      when: obsidian_version not in current_obsidian_version.stdout
+      tags:
+        - obsidian
+        - work
+        - personal
+
+    # ────────────────────────────────────────────
+    # WireGuard
+    # ────────────────────────────────────────────
+
+    - name: Install WireGuard
+      become: true
+      apt:
+        name: wireguard
+        state: present
+      tags:
+        - wireguard
+        - personal
+
+    # ────────────────────────────────────────────
+    # yt-dlp
+    # ────────────────────────────────────────────
+
+    - name: Install yt-dlp
+      become: true
+      apt:
+        name: yt-dlp
+        state: present
+      tags:
+        - yt-dlp
+        - personal
+
+    # ────────────────────────────────────────────
+    # Calibre
+    # ────────────────────────────────────────────
+
+    - name: Install Calibre
+      become: true
+      apt:
+        name: calibre
+        state: present
+      tags:
+        - calibre
+        - personal

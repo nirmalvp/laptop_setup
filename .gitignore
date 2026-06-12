@@ -1,0 +1,41 @@
+# Ansible retry files
+*.retry
+
+# Ansible vault password files
+.vault_pass
+.vault_password
+vault_password_file
+*.vault
+
+# Sensitive variable files
+*secrets*
+*passwords*
+group_vars/all/vault.yml
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+venv/
+.venv/
+
+# Logs
+*.log
+
+# Local inventory overrides
+inventory.local
+hosts.local
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Editor/OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~

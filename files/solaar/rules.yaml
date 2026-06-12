@@ -1,0 +1,248 @@
+%YAML 1.3
+---
+# ── Firefox ──────────────────────────────────────────────
+- Process: firefox
+# Back Button : history back
+- Rule:
+  - Key: [Back Button, pressed]
+  - KeyPress:
+    - [Alt_L, Left]
+    - click
+# Forward Button : history forward
+- Rule:
+  - Key: [Forward Button, pressed]
+  - KeyPress:
+    - [Alt_L, Right]
+    - click
+# Smart Shift tap : close tab
+- Rule:
+  - MouseGesture: Smart Shift
+  - KeyPress:
+    - [Control_L, w]
+    - click
+# Gesture Button tap : new tab
+- Rule:
+  - MouseGesture: Mouse Gesture Button
+  - KeyPress:
+    - [Control_L, t]
+    - click
+# Smart Shift + drag Up : reopen closed tab
+- Rule:
+  - MouseGesture: [Smart Shift, Mouse Up]
+  - KeyPress:
+    - [Control_L, Shift_L, t]
+    - click
+# Smart Shift + drag Down : bookmark page
+- Rule:
+  - MouseGesture: [Smart Shift, Mouse Down]
+  - KeyPress:
+    - [Control_L, d]
+    - click
+# Smart Shift + drag Left : move tab left
+- Rule:
+  - MouseGesture: [Smart Shift, Mouse Left]
+  - KeyPress:
+    - [Control_L, Shift_L, Page_Up]
+    - click
+# Smart Shift + drag Right : move tab right
+- Rule:
+  - MouseGesture: [Smart Shift, Mouse Right]
+  - KeyPress:
+    - [Control_L, Shift_L, Page_Down]
+    - click
+# Gesture Button + drag Up : focus address bar
+- Rule:
+  - MouseGesture: [Mouse Gesture Button, Mouse Up]
+  - KeyPress:
+    - [Control_L, l]
+    - click
+# Gesture Button + drag Down : reader mode
+- Rule:
+  - MouseGesture: [Mouse Gesture Button, Mouse Down]
+  - KeyPress:
+    - F9
+    - click
+# Gesture Button + drag Left : previous tab
+- Rule:
+  - MouseGesture: [Mouse Gesture Button, Mouse Left]
+  - KeyPress:
+    - [Control_L, Shift_L, Tab]
+    - click
+# Gesture Button + drag Right : next tab
+- Rule:
+  - MouseGesture: [Mouse Gesture Button, Mouse Right]
+  - KeyPress:
+    - [Control_L, Tab]
+    - click
+# Thumb wheel down : next tab
+- Rule:
+  - Test: [thumb_wheel_down, 5]
+  - KeyPress:
+    - [Control_L, Page_Down]
+    - click
+# Thumb wheel up : previous tab
+- Rule:
+  - Test: [thumb_wheel_up, 5]
+  - KeyPress:
+    - [Control_L, Page_Up]
+    - click
+...
+---
+# ── GoLand ───────────────────────────────────────────────
+- Process: goland
+# Back Button : previous error
+- Rule:
+  - Key: [Back Button, pressed]
+  - KeyPress:
+    - [Shift_L, F2]
+    - click
+# Forward Button : next error
+- Rule:
+  - Key: [Forward Button, pressed]
+  - KeyPress:
+    - F2
+    - click
+# Smart Shift tap : close editor tab
+- Rule:
+  - MouseGesture: Smart Shift
+  - KeyPress:
+    - [Control_L, F4]
+    - click
+# Smart Shift + drag Left : previous editor tab
+- Rule:
+  - MouseGesture: [Smart Shift, Mouse Left]
+  - KeyPress:
+    - [Alt_L, Left]
+    - click
+# Smart Shift + drag Right : next editor tab
+- Rule:
+  - MouseGesture: [Smart Shift, Mouse Right]
+  - KeyPress:
+    - [Alt_L, Right]
+    - click
+# Smart Shift + drag Up : run
+- Rule:
+  - MouseGesture: [Smart Shift, Mouse Up]
+  - KeyPress:
+    - [Shift_L, F10]
+    - click
+# Smart Shift + drag Down : stop running
+- Rule:
+  - MouseGesture: [Smart Shift, Mouse Down]
+  - KeyPress:
+    - [Control_L, F2]
+    - click
+# Gesture Button tap : go to declaration
+- Rule:
+  - MouseGesture: Mouse Gesture Button
+  - KeyPress:
+    - [Control_L, b]
+    - click
+# Gesture Button + drag Up : quick definition (inline preview)
+- Rule:
+  - MouseGesture: [Mouse Gesture Button, Mouse Up]
+  - KeyPress:
+    - [Control_L, Shift_L, i]
+    - click
+# Gesture Button + drag Down : find usages
+- Rule:
+  - MouseGesture: [Mouse Gesture Button, Mouse Down]
+  - KeyPress:
+    - [Alt_L, Shift_L, u]
+    - click
+# Gesture Button + drag Left : navigate back in code
+- Rule:
+  - MouseGesture: [Mouse Gesture Button, Mouse Left]
+  - KeyPress:
+    - [Control_L, Alt_L, Left]
+    - click
+# Gesture Button + drag Right : navigate forward in code
+- Rule:
+  - MouseGesture: [Mouse Gesture Button, Mouse Right]
+  - KeyPress:
+    - [Control_L, Alt_L, Right]
+    - click
+...
+---
+# ── Global (all other apps) ──────────────────────────────
+# Back Button : undo
+- Rule:
+  - Key: [Back Button, pressed]
+  - KeyPress:
+    - [Control_L, z]
+    - click
+# Forward Button : redo
+- Rule:
+  - Key: [Forward Button, pressed]
+  - KeyPress:
+    - [Control_L, Shift_L, z]
+    - click
+# Smart Shift tap : close window
+- Rule:
+  - MouseGesture: Smart Shift
+  - KeyPress:
+    - [Super_L, q]
+    - click
+# Smart Shift + drag Up : toggle maximize window
+- Rule:
+  - MouseGesture: [Smart Shift, Mouse Up]
+  - KeyPress:
+    - [Super_L, m]
+    - click
+# Smart Shift + drag Down : toggle overview (step back, see all windows)
+- Rule:
+  - MouseGesture: [Smart Shift, Mouse Down]
+  - KeyPress:
+    - [Super_L, d]
+    - click
+# Smart Shift + drag Left : snap window left
+- Rule:
+  - MouseGesture: [Smart Shift, Mouse Left]
+  - KeyPress:
+    - [Super_L, Left]
+    - click
+# Smart Shift + drag Right : snap window right
+- Rule:
+  - MouseGesture: [Smart Shift, Mouse Right]
+  - KeyPress:
+    - [Super_L, Right]
+    - click
+# Gesture Button tap : screenshot (opens area/fullscreen picker)
+- Rule:
+  - MouseGesture: Mouse Gesture Button
+  - KeyPress:
+    - Print
+    - click
+# Gesture Button + drag Up : open terminal
+- Rule:
+  - MouseGesture: [Mouse Gesture Button, Mouse Up]
+  - KeyPress:
+    - [Super_L, t]
+    - click
+# Gesture Button + drag Down : lock screen
+- Rule:
+  - MouseGesture: [Mouse Gesture Button, Mouse Down]
+  - KeyPress:
+    - [Super_L, Escape]
+    - click
+# Gesture Button + drag Left : previous workspace
+- Rule:
+  - MouseGesture: [Mouse Gesture Button, Mouse Left]
+  - KeyPress:
+    - [Control_L, Super_L, Up]
+    - click
+# Gesture Button + drag Right : next workspace
+- Rule:
+  - MouseGesture: [Mouse Gesture Button, Mouse Right]
+  - KeyPress:
+    - [Control_L, Super_L, Down]
+    - click
+# Thumb wheel up : volume down
+- Rule:
+  - Test: [thumb_wheel_up, 5]
+  - Execute: [wpctl, set-volume, '@DEFAULT_AUDIO_SINK@', 5%-]
+# Thumb wheel down : volume up
+- Rule:
+  - Test: [thumb_wheel_down, 5]
+  - Execute: [wpctl, set-volume, '@DEFAULT_AUDIO_SINK@', 5%+]
+...
